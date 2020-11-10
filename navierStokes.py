@@ -3,14 +3,14 @@ from numpy.linalg import solve,lstsq
 from scipy.ndimage.filters import uniform_filter1d
 import matplotlib.pyplot as plt
 
-N = 10
+N = 50
 
 Xp = np.linspace(1/(2*N),1-1/(2*N),N)
 X = np.append(np.append(0,Xp),1)
 
-nIterations = 20
+nIterations = 100
 
-reynolds = 15
+reynolds = 70
 
 pRelax = 0.5
 uRelax = 0.5
@@ -123,23 +123,23 @@ def pSolve(apU,apV,uFace,vFace):
     vFaceStripped = vFace[:,range(1,N-1)]
     q = 1/apU
     r = 1/apV
-    A = np.zeros(((N - 2) * (N - 2), N*N))
-    for i in range((N-2)*(N-2)):
-        l = (i // (N - 2)) * 2
-        a = [r[i],q[i+l//2],q[i+1+l//2],r[i+N-2]]
+    A = np.zeros(((N - 2)**2, (N - 2)**2 +2*(N - 2)))
+    for i in range((N-2)**2):
+        l = (i // (N - 2))
+        a = [r[i],q[i+l],q[i+1+l],r[i+N-2]]
         ap = -sum(a)
         conditions = [i + 1 <= N - 2,i % (N-2) == 0,(i+1)%(N-2)==0,(i+1)>(N-2)*(N-3)]
         for k,cond in enumerate(conditions):
             if cond:
                 ap = ap + a[k]
                 a[k] = 0
-        A[i, i + N + 1 + l] = ap
-        A[i, i + 1 + l] = a[0]
-        A[i, i + N + l] = a[1]
-        A[i, i + N + 2 + l] = a[2]
-        A[i, i + 2 * N + 1 + l] = a[3]
-    zeroColumnsIndex = np.argwhere(np.all(A[..., :] == 0, axis=0))
-    A = np.delete(A, zeroColumnsIndex, axis=1)
+        A[i, i] = a[0]
+        A[i, i + N - 3] = a[1]
+        A[i, i + N - 2] = ap
+        A[i, i + N - 1] = a[2]
+        A[i, i + 2*N - 4] = a[3]
+    squareRegion = range(N-2,N-2+(N-2)**2)
+    A = A[:,squareRegion]
     A = np.vstack((A,np.ones((1,(N-2)*(N-2)))))
     dU = np.diff(uFaceStripped,axis=1).flatten()
     dV = np.diff(vFaceStripped,axis=0).flatten()
@@ -156,6 +156,7 @@ def pSolve(apU,apV,uFace,vFace):
     return P
 
 for i in range(nIterations):
+    print(i)
     uFaceHorizontalBounded = np.hstack((uBCArray[1],Uface,uBCArray[2]))
     vFaceVerticalBounded = np.vstack((vBCArray[0],Vface,vBCArray[3]))
     USolution = uSolve(Uface,Vface,P)
@@ -168,6 +169,7 @@ for i in range(nIterations):
     P = P + pRelax*pline
     Uface = UfaceNew - np.diff(pline,axis=1)/UAp
     Vface = VfaceNew - np.diff(pline,axis=0)/VAp
+    print(Uface)
 
 Uplot = np.hstack((uBCArray[1],Uface,uBCArray[2]))
 Uplot = np.apply_along_axis(movingAverage, 1, Uplot)
@@ -179,4 +181,10 @@ Vplot = np.vstack((vBCArray[0],Vplot,vBCArray[3]))
 Vplot = np.hstack((vBCArray[1],Vplot,vBCArray[2]))
 fig, ax = plt.subplots()
 ax.quiver(X, X, Uplot, Vplot)
+plt.show()
+
+XP,YP = np.meshgrid(Xp,Xp)
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+ax.plot_surface(XP, YP, P)
 plt.show()

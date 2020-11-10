@@ -4,10 +4,10 @@ library(plotly)
 library(pracma)
 
 
-N = 25
+N = 37
 nI = 100
 
-reynolds = 35
+reynolds = 50
 
 pRelax = 0.5
 uRelax = 0.5
@@ -175,12 +175,12 @@ pSolve <- function(apU, apV, uFace, vFace) {
   vFaceStripped = vFace[,2:(N-1)]
   a = 1 / apU
   b = 1 / apV
-  A <- matrix(0, (N - 2) * (N - 2), N * N)
+  A <- matrix(0, (N - 2) * (N - 2), (N - 2) * (N - 2) + 2*(N-2))
   for (i in 1:((N - 2) * (N - 2))) {
-    l = ((i - 1) %/% (N - 2)) * 2
+    l = ((i - 1) %/% (N - 2))
     an = b[i]
-    aw = a[i + l/2]
-    ae = a[i + 1 + l/2]
+    aw = a[i + l]
+    ae = a[i + 1 + l]
     as = b[i + N - 2]
     ap = -(an + aw + ae + as)
     if (i <= N - 2) {
@@ -199,19 +199,20 @@ pSolve <- function(apU, apV, uFace, vFace) {
       ap = ap + as
       as = 0
     }
-    A[i, i + N + 1 + l] = ap
-    A[i, i + 1 + l] = an
-    A[i, i + N + l] = aw
-    A[i, i + N + 2 + l] = ae
-    A[i, i + 2 * N + 1 + l] = as
+    A[i, i] = an
+    A[i, i + N - 3] = aw
+    A[i, i + N - 2] = ap
+    A[i, i + N  -1] = ae
+    A[i, i + 2 * N - 4] = as
     
   }
-  A = A[, colSums(!(A == 0)) > 0]
-  A = rbind(A, 1)
+  squareRange = (N-1):(N-2+(N-2)*(N-2))
+  A = A[, squareRange]
+  A = rbind(A,1)
   dU = c(apply(uFaceStripped, 1, diff))
   dV = c(t(apply(vFaceStripped, 2, diff)))
   B = dU + dV
-  B = c(B, 0)
+  B = c(B,0)
   P = ginv(A) %*% B
   P = t(matrix(P, N - 2, N - 2))
   P = rbind(P[1, ], P, P[N - 2, ])
@@ -265,4 +266,3 @@ plot_ly(x = Xp, y = Xp, z = P) %>% add_surface()
 
 #plot_ly(x = X, y = X, z = U$plot) %>% add_surface()
 #plot_ly(x = X, y = X, z = V$plot) %>% add_surface()
-
