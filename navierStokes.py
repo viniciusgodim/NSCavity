@@ -170,15 +170,15 @@ for i in range(nIterations):
     P = P + pRelax*pline
     Uface = UfaceNew - np.diff(pline,axis=1)/UAp
     Vface = VfaceNew - np.diff(pline,axis=0)/VAp
-    Uplot = np.hstack((uBCArray[1],Uface,uBCArray[2]))
-    Uplot = np.apply_along_axis(movingAverage, 1, Uplot)
-    Uplot = np.hstack((uBCArray[1],Uplot,uBCArray[2]))
-    Uplot = np.vstack((uBCArray[0],Uplot,uBCArray[3]))
-    Vplot = np.vstack((vBCArray[0],Vface,vBCArray[3]))
-    Vplot = np.apply_along_axis(movingAverage, 0, Vplot)
-    Vplot = np.vstack((vBCArray[0],Vplot,vBCArray[3]))
-    Vplot = np.hstack((vBCArray[1],Vplot,vBCArray[2]))
 
+Uplot = np.hstack((uBCArray[1],Uface,uBCArray[2]))
+Uplot = np.apply_along_axis(movingAverage, 1, Uplot)
+Uplot = np.hstack((uBCArray[1],Uplot,uBCArray[2]))
+Uplot = np.vstack((uBCArray[0],Uplot,uBCArray[3]))
+Vplot = np.vstack((vBCArray[0],Vface,vBCArray[3]))
+Vplot = np.apply_along_axis(movingAverage, 0, Vplot)
+Vplot = np.vstack((vBCArray[0],Vplot,vBCArray[3]))
+Vplot = np.hstack((vBCArray[1],Vplot,vBCArray[2]))
 fig, ax = plt.subplots()
 ax.quiver(X, X, Uplot, Vplot)
 plt.show()
