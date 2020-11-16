@@ -5,12 +5,16 @@ import matplotlib.pyplot as plt
 
 N = 50
 
+vRange = np.array((3+N)*[False]+(N*[True]+2*[False])*(N-1)+(N+1)*[False])
+uRange = np.array((3+N-1)*[False]+((N-1)*[True]+2*[False])*N+N*[False])
+pRange = np.array((3+N-2)*[False]+((N-2)*[True]+2*[False])*(N-2)+(N-1)*[False])
+
 Xp = np.linspace(1/(2*N),1-1/(2*N),N)
 X = np.append(np.append(0,Xp),1)
 
 nIterations = 100
 
-reynolds = 70
+reynolds = 25
 
 pRelax = 0.5
 uRelax = 0.5
@@ -25,13 +29,11 @@ Vface = np.zeros((N-1,N))
 uBC = [0,0,0,1]
 uBCArray = [np.ones((1,N+2))*uBC[0],np.ones((N,1))*uBC[1],np.ones((N,1))*uBC[2],np.ones((1,N+2))*uBC[3]]
 
-vBC = [0,0,0,0]
+vBC = [0,1,0,0]
 vBCArray = [np.ones((1,N))*vBC[0],np.ones((N+2,1))*vBC[1],np.ones((N+2,1))*vBC[2],np.ones((1,N))*vBC[3]]
 
 def movingAverage(x):
-    average = uniform_filter1d(x, size=2)
-    average = np.delete(average, 0)
-    return average
+    return np.convolve(x, np.ones(2)/2, mode='valid')
 
 def hybridScheme(f,d):
     return np.array([max(f[i],d[i]+f[i]/2,0) for i in range(4)])
@@ -41,7 +43,7 @@ def uSolve(uFace,vFace,p):
     vCorner =  np.apply_along_axis(movingAverage, 1, vFaceVerticalBounded)
     uNodeLinear = uNode.flatten()
     vCornerLinear = vCorner.flatten()
-    A = np.zeros((N * (N - 1), N * (N - 1) + 2 * N - 2))
+    A = np.zeros((N * (N - 1), (N+2)*(N+1)))
     for i in range(N*(N-1)):
         D = np.ones(4)* d
         l = i // (N-1)
@@ -60,14 +62,13 @@ def uSolve(uFace,vFace,p):
         a = hybridScheme(F,D)
         ap = -(sum(a) - sum(F))/uRelax
         aW = wBC * a
-        A[i, i] =  aW[0]
-        A[i, i + N - 2] = aW[1]
-        A[i, i + N - 1] = ap
-        A[i, i + N] = aW[2]
-        A[i, i + 2 * N - 2] = aW[3]
-    squareRegion = range(N - 1,N + N * (N - 1) - 1)
-    AU = A[:,squareRegion]
-    BU = np.delete(A,squareRegion,1)
+        A[i, i + 1 + 2*l] =  aW[0]
+        A[i, i + 1 + 2*l + N] = aW[1]
+        A[i, i + 2 + 2*l + N] = ap
+        A[i, i + 3 + 2*l + N] = aW[2]
+        A[i, i + 3 + 2*l + 2*N] = aW[3]
+    AU = A[:,uRange]
+    BU = A[:,~uRange]
     BU = -np.sum(BU,axis=1)
     ApU = -np.diagonal(AU)
     ApU = np.reshape(ApU,(-1,N-1))
@@ -81,7 +82,7 @@ def vSolve(uFace,vFace,p):
     vNode =  np.apply_along_axis(movingAverage, 0, vFaceVerticalBounded)
     uCornerLinear = uCorner.flatten()
     vNodeLinear = vNode.flatten()
-    A = np.zeros((N * (N - 1), N * (N - 1) + 2 * N))
+    A = np.zeros((N * (N - 1), (N+2) * (N+1)))
     for i in range(N*(N-1)):
         D = np.ones(4)* d
         l = i // N
@@ -100,14 +101,13 @@ def vSolve(uFace,vFace,p):
         a = hybridScheme(F,D)
         ap = -(sum(a) - sum(F))/vRelax
         aW = wBC * a
-        A[i, i] =  aW[0]
-        A[i, i + N - 1] = aW[1]
-        A[i, i + N] = ap
-        A[i, i + N + 1] = aW[2]
-        A[i, i + 2 * N] = aW[3]
-    squareRegion = range(N,N + N * (N - 1))
-    AV = A[:,squareRegion]
-    BV = np.delete(A,squareRegion,1)
+        A[i, i + 1 + 2*l] =  aW[0]
+        A[i, i + 1 + 2*l + N + 1] = aW[1]
+        A[i, i + 2 + 2*l + N + 1] = ap
+        A[i, i + 3 + 2*l + N + 1] = aW[2]
+        A[i, i + 5 + 2*l + 2*N] = aW[3]
+    AV = A[:,vRange]
+    BV = A[:,~vRange]
     BV = -np.sum(BV,axis=1)
     ApV = -np.diagonal(AV)
     ApV = np.reshape(ApV,(-1,N))
@@ -123,7 +123,7 @@ def pSolve(apU,apV,uFace,vFace):
     vFaceStripped = vFace[:,range(1,N-1)]
     q = 1/apU
     r = 1/apV
-    A = np.zeros(((N - 2)**2, (N - 2)**2 +2*(N - 2)))
+    A = np.zeros(((N - 2)**2, N**2))
     for i in range((N-2)**2):
         l = (i // (N - 2))
         a = [r[i],q[i+l],q[i+1+l],r[i+N-2]]
@@ -133,19 +133,18 @@ def pSolve(apU,apV,uFace,vFace):
             if cond:
                 ap = ap + a[k]
                 a[k] = 0
-        A[i, i] = a[0]
-        A[i, i + N - 3] = a[1]
-        A[i, i + N - 2] = ap
-        A[i, i + N - 1] = a[2]
-        A[i, i + 2*N - 4] = a[3]
-    squareRegion = range(N-2,N-2+(N-2)**2)
-    A = A[:,squareRegion]
+        A[i, i + 1 + 2*l] =  a[0]
+        A[i, i + 1 + 2*l + N - 1] = a[1]
+        A[i, i + 2 + 2*l + N - 1] = ap
+        A[i, i + 3 + 2*l + N - 1] = a[2]
+        A[i, i + 1 + 2*l + 2*N] = a[3]
+    A = A[:,pRange]
     A = np.vstack((A,np.ones((1,(N-2)*(N-2)))))
     dU = np.diff(uFaceStripped,axis=1).flatten()
     dV = np.diff(vFaceStripped,axis=0).flatten()
     B = dU + dV
     B = np.append(B,0)
-    P = lstsq(A,B)[0]
+    P = lstsq(A,B,rcond=None)[0]
     P = np.reshape(P,(-1,N-2))
     P = np.vstack(([P[0,:]],P,[P[-1,:]]))
     P = np.hstack(([[pr] for pr in P[:,0]],P,[[pr] for pr in P[:,-1]]))
@@ -169,7 +168,6 @@ for i in range(nIterations):
     P = P + pRelax*pline
     Uface = UfaceNew - np.diff(pline,axis=1)/UAp
     Vface = VfaceNew - np.diff(pline,axis=0)/VAp
-    print(Uface)
 
 Uplot = np.hstack((uBCArray[1],Uface,uBCArray[2]))
 Uplot = np.apply_along_axis(movingAverage, 1, Uplot)
