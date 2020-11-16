@@ -1,6 +1,5 @@
 import numpy as np
 from numpy.linalg import solve,lstsq
-from scipy.ndimage.filters import uniform_filter1d
 import matplotlib.pyplot as plt
 
 N = 50
