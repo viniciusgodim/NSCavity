@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import solve,lstsq
 import matplotlib.pyplot as plt
 
-N = 50
+N = 15
 
 vRange = np.array((3+N)*[False]+(N*[True]+2*[False])*(N-1)+(N+1)*[False])
 uRange = np.array((3+N-1)*[False]+((N-1)*[True]+2*[False])*N+N*[False])
@@ -11,9 +11,9 @@ pRange = np.array((3+N-2)*[False]+((N-2)*[True]+2*[False])*(N-2)+(N-1)*[False])
 Xp = np.linspace(1/(2*N),1-1/(2*N),N)
 X = np.append(np.append(0,Xp),1)
 
-nIterations = 100
+nIterations = 500
 
-reynolds = 25
+reynolds = 20
 
 pRelax = 0.5
 uRelax = 0.5
@@ -28,7 +28,7 @@ Vface = np.zeros((N-1,N))
 uBC = [0,0,0,1]
 uBCArray = [np.ones((1,N+2))*uBC[0],np.ones((N,1))*uBC[1],np.ones((N,1))*uBC[2],np.ones((1,N+2))*uBC[3]]
 
-vBC = [0,1,0,0]
+vBC = [0,0,0,0]
 vBCArray = [np.ones((1,N))*vBC[0],np.ones((N+2,1))*vBC[1],np.ones((N+2,1))*vBC[2],np.ones((1,N))*vBC[3]]
 
 def movingAverage(x):
@@ -36,6 +36,9 @@ def movingAverage(x):
 
 def hybridScheme(f,d):
     return np.array([max(f[i],d[i]+f[i]/2,0) for i in range(4)])
+
+def upwindScheme(f,d):
+    return np.array([d[i] + max(f[i],0) for i in range(4)])
 
 def uSolve(uFace,vFace,p):
     uNode = np.apply_along_axis(movingAverage, 1, uFaceHorizontalBounded)
@@ -58,7 +61,7 @@ def uSolve(uFace,vFace,p):
         if i + 1 > (N-1)*(N-1):
             D[3] *= 2
             wBC[3] = uBC[3]
-        a = hybridScheme(F,D)
+        a = upwindScheme(F,D)
         ap = -(sum(a) - sum(F))/uRelax
         aW = wBC * a
         A[i, i + 1 + 2*l] =  aW[0]
@@ -97,7 +100,7 @@ def vSolve(uFace,vFace,p):
             wBC[2] = vBC[2]
         if (i + 1) > (N-2)*N:
             wBC[3] = vBC[3]
-        a = hybridScheme(F,D)
+        a = upwindScheme(F,D)
         ap = -(sum(a) - sum(F))/vRelax
         aW = wBC * a
         A[i, i + 1 + 2*l] =  aW[0]
@@ -167,6 +170,7 @@ for i in range(nIterations):
     P = P + pRelax*pline
     Uface = UfaceNew - np.diff(pline,axis=1)/UAp
     Vface = VfaceNew - np.diff(pline,axis=0)/VAp
+    print(Uface)
 
 Uplot = np.hstack((uBCArray[1],Uface,uBCArray[2]))
 Uplot = np.apply_along_axis(movingAverage, 1, Uplot)
