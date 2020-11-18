@@ -2,8 +2,10 @@ import numpy as np
 from numpy.linalg import solve,lstsq
 import matplotlib.pyplot as plt
 
+# Number of nodes for pressure in both x and y-direction. Naturally, the total number of nodes is N^2.
 N = 15
 
+# Define the range of columns of the coefficient matrix that contains actual coefficients (True) vs boundary conditions (False).
 vRange = np.array((3+N)*[False]+(N*[True]+2*[False])*(N-1)+(N+1)*[False])
 uRange = np.array((3+N-1)*[False]+((N-1)*[True]+2*[False])*N+N*[False])
 pRange = np.array((3+N-2)*[False]+((N-2)*[True]+2*[False])*(N-2)+(N-1)*[False])
@@ -15,6 +17,7 @@ nIterations = 500
 
 reynolds = 20
 
+# Under-relaxation parameters for u, v and p
 pRelax = 0.5
 uRelax = 0.5
 vRelax = 0.5
@@ -25,12 +28,15 @@ P = np.zeros((N,N))
 Uface = np.zeros((N,N-1))
 Vface = np.zeros((N-1,N))
 
+# Boundary conditions for u: north, west, east, south.
 uBC = [0,0,0,1]
 uBCArray = [np.ones((1,N+2))*uBC[0],np.ones((N,1))*uBC[1],np.ones((N,1))*uBC[2],np.ones((1,N+2))*uBC[3]]
 
+# Boundary conditions for v: north, west, east, south.
 vBC = [0,0,0,0]
 vBCArray = [np.ones((1,N))*vBC[0],np.ones((N+2,1))*vBC[1],np.ones((N+2,1))*vBC[2],np.ones((1,N))*vBC[3]]
 
+# This is just a functional trick to efficiently calculate the moving average/running mean of an array.
 def movingAverage(x):
     return np.convolve(x, np.ones(2)/2, mode='valid')
 
