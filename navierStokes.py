@@ -13,8 +13,7 @@ X = np.append(np.append(0,Xp),1)
 
 nIterations = 500
 
-reynolds = 20
-froude = float('inf')
+reynolds = 2
 
 pRelax = 0.5
 uRelax = 0.5
@@ -111,7 +110,7 @@ def vSolve(uFace,vFace,p):
         A[i, i + 5 + 2*l + 2*N] = aW[3]
     AV = A[:,vRange]
     BV = A[:,~vRange]
-    BV = -np.sum(BV,axis=1) + 1/froude**2
+    BV = -np.sum(BV,axis=1)
     ApV = -np.diagonal(AV)
     ApV = np.reshape(ApV,(-1,N))
     BV = BV + np.diff(p,axis=0).flatten() - (1-vRelax)*(ApV*vFace).flatten()
