@@ -2,10 +2,8 @@ import numpy as np
 from numpy.linalg import solve,lstsq
 import matplotlib.pyplot as plt
 
-# Number of nodes for pressure in both x and y-direction. Naturally, the total number of nodes is N^2.
-N = 15
+N = 20
 
-# Define the range of columns of the coefficient matrix that contains actual coefficients (True) vs boundary conditions (False).
 vRange = np.array((3+N)*[False]+(N*[True]+2*[False])*(N-1)+(N+1)*[False])
 uRange = np.array((3+N-1)*[False]+((N-1)*[True]+2*[False])*N+N*[False])
 pRange = np.array((3+N-2)*[False]+((N-2)*[True]+2*[False])*(N-2)+(N-1)*[False])
@@ -16,8 +14,8 @@ X = np.append(np.append(0,Xp),1)
 nIterations = 500
 
 reynolds = 20
+froude = float('inf')
 
-# Under-relaxation parameters for u, v and p
 pRelax = 0.5
 uRelax = 0.5
 vRelax = 0.5
@@ -28,15 +26,12 @@ P = np.zeros((N,N))
 Uface = np.zeros((N,N-1))
 Vface = np.zeros((N-1,N))
 
-# Boundary conditions for u: north, west, east, south.
 uBC = [0,0,0,1]
 uBCArray = [np.ones((1,N+2))*uBC[0],np.ones((N,1))*uBC[1],np.ones((N,1))*uBC[2],np.ones((1,N+2))*uBC[3]]
 
-# Boundary conditions for v: north, west, east, south.
 vBC = [0,0,0,0]
 vBCArray = [np.ones((1,N))*vBC[0],np.ones((N+2,1))*vBC[1],np.ones((N+2,1))*vBC[2],np.ones((1,N))*vBC[3]]
 
-# This is just a functional trick to efficiently calculate the moving average/running mean of an array.
 def movingAverage(x):
     return np.convolve(x, np.ones(2)/2, mode='valid')
 
@@ -67,7 +62,7 @@ def uSolve(uFace,vFace,p):
         if i + 1 > (N-1)*(N-1):
             D[3] *= 2
             wBC[3] = uBC[3]
-        a = upwindScheme(F,D)
+        a = hybridScheme(F,D)
         ap = -(sum(a) - sum(F))/uRelax
         aW = wBC * a
         A[i, i + 1 + 2*l] =  aW[0]
@@ -106,7 +101,7 @@ def vSolve(uFace,vFace,p):
             wBC[2] = vBC[2]
         if (i + 1) > (N-2)*N:
             wBC[3] = vBC[3]
-        a = upwindScheme(F,D)
+        a = hybridScheme(F,D)
         ap = -(sum(a) - sum(F))/vRelax
         aW = wBC * a
         A[i, i + 1 + 2*l] =  aW[0]
@@ -116,7 +111,7 @@ def vSolve(uFace,vFace,p):
         A[i, i + 5 + 2*l + 2*N] = aW[3]
     AV = A[:,vRange]
     BV = A[:,~vRange]
-    BV = -np.sum(BV,axis=1)
+    BV = -np.sum(BV,axis=1) + 1/froude**2
     ApV = -np.diagonal(AV)
     ApV = np.reshape(ApV,(-1,N))
     BV = BV + np.diff(p,axis=0).flatten() - (1-vRelax)*(ApV*vFace).flatten()
@@ -133,29 +128,39 @@ def pSolve(apU,apV,uFace,vFace):
     r = 1/apV
     A = np.zeros(((N - 2)**2, N**2))
     for i in range((N-2)**2):
-        l = (i // (N - 2))
+        l = i // (N - 2)
         a = [r[i],q[i+l],q[i+1+l],r[i+N-2]]
         ap = -sum(a)
-        conditions = [i + 1 <= N - 2,i % (N-2) == 0,(i+1)%(N-2)==0,(i+1)>(N-2)*(N-3)]
-        for k,cond in enumerate(conditions):
-            if cond:
-                ap = ap + a[k]
-                a[k] = 0
+        if i + 1 <= N - 2:
+            ap = 1
+            a = [0,0,0,-1]
+        if i % (N - 2) == 0:
+            ap = 1
+            a = [0, 0, -1, 0]
+        if (i + 1) % (N - 2) == 0:
+            ap = 1
+            a = [0, -1, 0, 0]
+        if (i + 1) > (N - 2) * (N - 3):
+            ap = 1
+            a = [-1,0,0,0]
         A[i, i + 1 + 2*l] =  a[0]
         A[i, i + 1 + 2*l + N - 1] = a[1]
         A[i, i + 2 + 2*l + N - 1] = ap
         A[i, i + 3 + 2*l + N - 1] = a[2]
         A[i, i + 1 + 2*l + 2*N] = a[3]
     A = A[:,pRange]
-    A = np.vstack((A,np.ones((1,(N-2)*(N-2)))))
     dU = np.diff(uFaceStripped,axis=1).flatten()
     dV = np.diff(vFaceStripped,axis=0).flatten()
     B = dU + dV
+    for i in range((N - 2)**2):
+        if i + 1 <= N - 2 or i % (N - 2) == 0 or (i + 1) % (N - 2) == 0 or (i + 1) > (N - 2) * (N - 3):
+            B[i] = 0
+    A = np.vstack((A,np.ones((1,(N-2)*(N-2)))))
     B = np.append(B,0)
     P = lstsq(A,B,rcond=None)[0]
     P = np.reshape(P,(-1,N-2))
     P = np.vstack(([P[0,:]],P,[P[-1,:]]))
-    P = np.hstack(([[pr] for pr in P[:,0]],P,[[pr] for pr in P[:,-1]]))
+    P = np.hstack((P[:,0].reshape(-1,1),P, P[:,-1].reshape(-1,1)))
     P[0, 0] = (P[0, 1] + P[1, 0]) / 2
     P[-1, 0] = (P[-2, 0] + P[-1, 1]) / 2
     P[0,-1] = (P[1,-1] + P[0,-2]) / 2
